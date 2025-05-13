@@ -1,0 +1,14 @@
+@@ -24,6 +24,11 @@
+         fi
+     done
+ 
++    # Modified to add the modified version of clevis-decrypt-fido2, as well as the binaries from
++    # libfido2 required to run it.
++    add_binary /usr/bin/initramfs-clevis-decrypt-fido2 /usr/bin/clevis-decrypt-fido2
++    add_binary "fido2-assert"
++    add_binary "fido2-cred"
++    add_binary "fido2-token"
++
+     add_runscript
+ }
+ 

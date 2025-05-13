@@ -1,0 +1,13 @@
+@@ -92,9 +92,9 @@
+   f2a_uv=""
+ fi
+ 
+-#shellcheck disable=SC2086
+-hmac="$(printf '%s\n%s\n%s\n%s\n' "${client_hash}" "${rp_id}" "${cred_id}" "${hmac_salt}" | \
+-  fido2-assert -G -h ${f2a_uv} -t "up=${up}" -t "pin=${pin}" "${fido2_token}" | \
++# modified to make fido2-assert take the PIN code directly from stdin instead of prompting interactively
++hmac="$(fido2-assert -G -h ${f2a_uv} -t "up=${up}" -t "pin=${pin}" "${fido2_token}" \
++  -i <(printf '%s\n%s\n%s\n%s\n' "${client_hash}" "${rp_id}" "${cred_id}" "${hmac_salt}") <<<"$PIN_CODE" | \
+   head -n5 | tail -n1 | base64 -d | jose b64 enc -I -)"
+ 
+ # use the secret in a key wrapping key

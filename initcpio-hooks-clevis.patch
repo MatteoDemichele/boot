@@ -1,0 +1,69 @@
+@@ -16,26 +16,63 @@
+         return 0
+     fi
+ 
++    # Modified to parse additional cryptsetup options appended to the cryptdevice in the kernel cmdline.
++    # Example: cryptdevice=UUID=0123456789abcdef:foobar_volume:allow-discards,no-read-workqueue,no-write-workqueue
++    # This code has been copied from:
++    # https://gitlab.archlinux.org/archlinux/mkinitcpio/mkinitcpio/-/blob/a6ef10d3f4f24029fc649686ba36f692d8575a7a/hooks/encrypt#L65-88
++    set -f
++    OLDIFS="$IFS"; IFS=,
++    for cryptopt in ${cryptoptions}; do
++        case ${cryptopt} in
++            allow-discards|discard)
++                cryptargs="${cryptargs} --allow-discards"
++                ;;
++            no-read-workqueue|perf-no_read_workqueue)
++                cryptargs="${cryptargs} --perf-no_read_workqueue"
++                ;;
++            no-write-workqueue|perf-no_write_workqueue)
++                cryptargs="${cryptargs} --perf-no_write_workqueue"
++                ;;
++            sector-size=*)
++                cryptargs="${cryptargs} --sector-size ${cryptopt#*=}"
++                ;;
++            *)
++                echo "Encryption option '${cryptopt}' not known, ignoring." >&2
++                ;;
++        esac
++    done
++    set +f
++    IFS="$OLDIFS"
++    unset OLDIFS
++
+     if resolved=$(resolve_device "${cryptdev}" ${rootdelay}); then
+         if cryptsetup isLuks ${resolved} >/dev/null 2>&1; then
+             # /dev/fd missing somehow
+             [ ! -d /dev/fd ] && ln -s /proc/self/fd /dev/
+             echo ""
+-            echo "Attempting to unlock ${resolved} with TPM..."
++            echo "Attempting to unlock ${resolved} with clevis..."
+ 
+-            if ! clevis-luks-unlock -d ${resolved} -n ${cryptname}; then
+-                err "TPM unlock failed."
++            # Modified to explicitely ask for the PIN code instead of letting clevis-decrypt-fido2
++            # do it. This is a workaround for a bug that makes clevis-decrypt-fido2 skip waiting for
++            # user input when executed in the early userspace. Further investigation is required to
++            # properly address this without using this workaround.
++            # This code only works with a slightly modified version of clevis-decrypt-fido2 that
++            # retrieves to pin code from the variable PIN_CODE.
++            read -rsp 'Enter fido2 PIN: ' pin_code
++            echo
++            if ! PIN_CODE="$pin_code" clevis-luks-unlock -d "$resolved" -n "$cryptname" -o "$cryptargs"; then
++                err "clevis unlock failed."
+                 return 1
+             fi
+ 
+-            echo "TPM unlock succeeded."
++            echo "clevis unlock succeeded."
+ 
+             if [ ! -e "/dev/mapper/${cryptname}" ]; then
+                 err "${cryptname} creation failed, aborting..."
+                 return 1
+             fi
+         else
+-            err "Failed to open encryption mapping: The device ${cryptdev} is not a LUKS volume and the crypto= paramater was not specified."
++            err "Failed to open encryption mapping: The device ${cryptdev} is not a LUKS volume and the crypto= parameter was not specified."
+         fi
+     fi
+ }
